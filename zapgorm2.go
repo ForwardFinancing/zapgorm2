@@ -130,7 +130,7 @@ func (l Logger) logger(ctx context.Context) *zap.Logger {
 		case strings.Contains(file, gormPackage):
 		case strings.Contains(file, zapgormPackage):
 		default:
-			return logger.WithOptions(zap.AddCallerSkip(i))
+			return logger.WithOptions(zap.AddCallerSkip(i - 1))
 		}
 	}
 	return logger
