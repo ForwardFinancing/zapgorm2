@@ -12,9 +12,11 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
+	gormutils "gorm.io/gorm/utils"
 )
 
 type ContextFn func(ctx context.Context) []zapcore.Field
+type TraceMsgFn func(sql string, rows int64, duration time.Duration, file string, err error) string
 
 type Logger struct {
 	ZapLogger                 *zap.Logger
@@ -23,6 +25,9 @@ type Logger struct {
 	SkipCallerLookup          bool
 	IgnoreRecordNotFoundError bool
 	Context                   ContextFn
+	TraceErrorMsg             TraceMsgFn
+	TraceSlowQueryMsg         TraceMsgFn
+	TraceQueryMsg             TraceMsgFn
 }
 
 func New(zapLogger *zap.Logger) Logger {
@@ -76,18 +81,28 @@ func (l Logger) Trace(ctx context.Context, begin time.Time, fc func() (string, i
 	if l.LogLevel <= 0 {
 		return
 	}
+	msg := "trace"
 	elapsed := time.Since(begin)
 	logger := l.logger(ctx)
 	switch {
 	case err != nil && l.LogLevel >= gormlogger.Error && (!l.IgnoreRecordNotFoundError || !errors.Is(err, gorm.ErrRecordNotFound)):
 		sql, rows := fc()
-		logger.Error("trace", zap.Error(err), zap.Duration("elapsed", elapsed), zap.Int64("rows", rows), zap.String("sql", sql))
+		if l.TraceErrorMsg != nil {
+			msg = l.TraceErrorMsg(sql, rows, elapsed, gormutils.FileWithLineNum(), err)
+		}
+		logger.Error(msg, zap.Error(err), zap.Duration("elapsed", elapsed), zap.Int64("rows", rows), zap.String("sql", sql))
 	case l.SlowThreshold != 0 && elapsed > l.SlowThreshold && l.LogLevel >= gormlogger.Warn:
 		sql, rows := fc()
-		logger.Warn("trace", zap.Duration("elapsed", elapsed), zap.Int64("rows", rows), zap.String("sql", sql))
+		if l.TraceSlowQueryMsg != nil {
+			msg = l.TraceSlowQueryMsg(sql, rows, elapsed, gormutils.FileWithLineNum(), nil)
+		}
+		logger.Warn(msg, zap.Duration("elapsed", elapsed), zap.Int64("rows", rows), zap.String("sql", sql))
 	case l.LogLevel >= gormlogger.Info:
 		sql, rows := fc()
-		logger.Debug("trace", zap.Duration("elapsed", elapsed), zap.Int64("rows", rows), zap.String("sql", sql))
+		if l.TraceQueryMsg != nil {
+			msg = l.TraceQueryMsg(sql, rows, elapsed, gormutils.FileWithLineNum(), nil)
+		}
+		logger.Debug(msg, zap.Duration("elapsed", elapsed), zap.Int64("rows", rows), zap.String("sql", sql))
 	}
 }
 
