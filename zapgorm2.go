@@ -53,6 +53,9 @@ func (l Logger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {
 		SkipCallerLookup:          l.SkipCallerLookup,
 		IgnoreRecordNotFoundError: l.IgnoreRecordNotFoundError,
 		Context:                   l.Context,
+		TraceErrorMsg:             l.TraceErrorMsg,
+		TraceSlowQueryMsg:         l.TraceSlowQueryMsg,
+		TraceQueryMsg:             l.TraceQueryMsg,
 	}
 }
 
